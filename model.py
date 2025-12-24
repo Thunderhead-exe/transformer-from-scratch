@@ -85,4 +85,41 @@ class PositionalEncoding(nn.Module):
         # Apply dropout and return
         return self.dropout(x)
 
-        
+
+class LayerNorm(nn.Module):
+
+    def __init__(self, d_model: int, eps: float = 1e-6):
+        """
+        Initialize the layer normalization layer
+
+        Args:
+            d_model: The dimensionality of the model (embedding size)
+            eps: A small value to prevent division by zero
+        """
+        super().__init__()
+        self.d_model = d_model
+        self.eps = eps
+
+        # Learnable parameters for scaling (multiplicative) and shifting (additive) (gamma and beta in the original paper)
+        # to allow the model to adjust the normalized output and restore the original distribution if needed or decide how much normalization is necessary
+        # because having a mean of 0 and variance of 1 is beneficial for training stability but may not be optimal for performance based on the data
+        self.alpha = nn.Parameter(torch.ones(d_model))
+        self.bias = nn.Parameter(torch.zeros(d_model))
+
+    def forward(self, x):
+        """
+        Forward pass for layer normalization
+        Args:
+            x: Tensor of shape (batch_size, seq_length, d_model) containing input embeddings
+        Returns:
+            Tensor of shape (batch_size, seq_length, d_model) containing the normalized embeddings
+        """
+        # dim=-1 to calculate statistics across the last dimension (d_model) to normalize each token's feature vector independently
+        # ensuring that normalization is applied "per word" regardless of batch size or sentence length
+        # keepdim=True to preserve the last dimension as size 1 (shape becomes [Batch, Seq, 1]) which is required for broadcasting
+        # (it allows PyTorch to align and subtract this calculated mean from the original input tensor (shape [Batch, Seq, Embed])
+        mean = x.mean(dim=-1, keepdim=True)
+        std = x.std(dim=-1, keepdim=True)
+
+        # Normalize the input and apply the learnable parameters
+        return self.alpha * (x - mean) / (std + self.eps) + self.bias
